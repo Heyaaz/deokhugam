@@ -37,6 +37,12 @@ public class S3ThumbnailImageStorage implements ThumbnailImageStorage {
   // S3에 이미지를 저장하고 해당 파일의 key를 반환
   @Override
   public String upload(MultipartFile file) {
+    // 파일이 null이거나 비어있으면 S3 업로드 건너뛰기
+    if (file == null || file.isEmpty()) {
+      log.warn("[S3 업로드 건너뛰기] 파일이 비어있습니다.");
+      return null; // 또는 빈 문자열 "" 반환
+    }
+
     String key = "image/" + UUID.randomUUID();
 
     PutObjectRequest request =
@@ -62,6 +68,12 @@ public class S3ThumbnailImageStorage implements ThumbnailImageStorage {
   // Presigned URL은 일시적으로 접근 가능한 S3 다운로드 링크
   @Override
   public String get(String key) {
+    // key가 null이거나 비어있으면 Presigned URL 생성 건너뛰기
+    if (key == null || key.trim().isEmpty()) {
+      log.warn("[Presigned URL 생성 건너뛰기] key가 비어있습니다.");
+      return null; // 또는 로컬 파일 경로 등 반환
+    }
+
     GetObjectRequest getObjectRequest = GetObjectRequest.builder().bucket(bucket).key(key).build();
 
     GetObjectPresignRequest presignRequest =
