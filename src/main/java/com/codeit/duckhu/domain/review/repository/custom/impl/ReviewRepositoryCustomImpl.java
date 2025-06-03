@@ -12,8 +12,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 
+@Slf4j
 @RequiredArgsConstructor
 public class ReviewRepositoryCustomImpl implements ReviewRepositoryCustom {
 
@@ -59,12 +61,17 @@ public class ReviewRepositoryCustomImpl implements ReviewRepositoryCustom {
 
     List<OrderSpecifier<?>> orderSpecifiers = getOrderSpecifiers(orderBy, isAsc(direction));
 
-    return queryFactory
+    List<Review> reviews = queryFactory
         .selectFrom(review)
+        .leftJoin(review.user).fetchJoin()
+        .leftJoin(review.book).fetchJoin()
         .where(booleanBuilder)
         .orderBy(orderSpecifiers.toArray(OrderSpecifier[]::new))
         .limit(size)
         .fetch();
+
+    log.debug("==== 리뷰 조회 결과 : {}건 ====" + reviews.size());
+    return reviews;
   }
 
   private boolean isAsc(Direction direction) {
