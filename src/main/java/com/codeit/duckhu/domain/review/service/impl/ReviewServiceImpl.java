@@ -32,6 +32,9 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -232,6 +235,11 @@ public class ReviewServiceImpl implements ReviewService {
     return reviewMapper.toDto(updatedReview, thumbnailUrl, userId);
   }
 
+  @Retryable(
+      value = OptimisticLockingFailureException.class,
+      maxAttempts = 3,
+      backoff = @Backoff(delay = 100)
+  )
   @Transactional
   @Override
   public ReviewLikeDto likeReview(UUID reviewId, UUID userId) {
