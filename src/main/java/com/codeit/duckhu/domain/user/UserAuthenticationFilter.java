@@ -35,6 +35,14 @@ public class UserAuthenticationFilter extends OncePerRequestFilter {
       return;
     }
 
+    // 인증 우회(로컬 POSTMAN 테스트용)
+    String bypass = request.getHeader("X-Bypass-Auth");
+    if ("true".equalsIgnoreCase(bypass)) {
+      log.debug("인증 우회 헤더 감지됨 - 인증 생략");
+      filterChain.doFilter(request, response);
+      return;
+    }
+
     try {
       HttpSession session = request.getSession(false);
       if (session == null) {
