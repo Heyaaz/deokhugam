@@ -2,7 +2,9 @@ package com.codeit.duckhu.domain.review.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -44,6 +46,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -56,8 +63,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 /** 리뷰 서비스 테스트 클래스 TDD 방식으로 구현 예정 */
-
-/** TODO : 실패 케이스 작성 (FORBIDDEN, NOT_FOUND ...) */
+@Slf4j
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ReviewServiceTest {
@@ -705,5 +711,59 @@ class ReviewServiceTest {
     }
   }
 
+  @Test
+  @DisplayName("기존 리뷰로 동시성 테스트")
+  void testConcurrencyWithExistingReview() throws InterruptedException {
+    // Given: 리뷰 중 첫 번째 사용
+    List<Review> existingReviews = reviewRepository.findAll();
 
+    log.debug("테스트할 리뷰가 없습니다.");
+    if (existingReviews.isEmpty()) {
+      return;
+    }
+
+    Review testReview = existingReviews.get(0);
+    UUID testReviewId = testReview.getId();
+
+    // Given
+    int threadCount = 5; // 동시성 테스트를 위한 스레드 수
+    ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+
+    CountDownLatch startLatch = new CountDownLatch(1);
+    CountDownLatch doneLatch = new CountDownLatch(threadCount);
+
+    AtomicInteger successCount = new AtomicInteger(0);
+    AtomicInteger failureCount = new AtomicInteger(0);
+
+    // When: 동시에 서로 다른 사용자가 좋아요 요청
+    for (int i = 0; i < threadCount; i++) {
+      final UUID userId = UUID.randomUUID();
+
+      executor.submit(() -> {
+        try {
+          startLatch.await();  // 모든 스레드가 준비될 때까지 대기
+          reviewService.likeReview(testReviewId, userId);
+          successCount.incrementAndGet();
+        } catch (Exception e) {
+          failureCount.incrementAndGet();
+        } finally {
+          doneLatch.countDown();
+        }
+      });
+    }
+
+    // Then
+    startLatch.countDown();
+
+    doneLatch.await();
+    executor.shutdown();
+
+    // 결과 조회
+    Review updatedReview = reviewRepository.findById(testReviewId).orElseThrow();
+
+    // 기본 검증
+    assertEquals(successCount.get(), updatedReview.getLikeCount());
+    assertTrue(successCount.get() + failureCount.get() == threadCount,
+        "모든 요청이 처리되어야 함");
+  }
 }
