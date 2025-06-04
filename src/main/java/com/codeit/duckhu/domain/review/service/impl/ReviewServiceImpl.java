@@ -32,6 +32,9 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.actuate.autoconfigure.condition.ConditionsReportEndpoint;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
@@ -57,9 +60,11 @@ public class ReviewServiceImpl implements ReviewService {
 
   // 코멘트 수 업데이트를 위해 CommentRepository 추가
   private final CommentRepository commentRepository;
+  private final ConditionsReportEndpoint conditionsReportEndpoint;
 
   @Override
   @Transactional
+  @CacheEvict(value = "popularReviews", allEntries = true)
   public ReviewDto createReview(ReviewCreateRequest request) {
     log.info("새로운 리뷰 생성 - 사용자 ID: {}, 도서 ID: {}", request.getUserId(), request.getBookId());
 
@@ -170,6 +175,7 @@ public class ReviewServiceImpl implements ReviewService {
 
   @Transactional
   @Override
+  @CacheEvict(value = "popularReviews", allEntries = true)
   public void softDeleteReviewById(UUID userId, UUID reviewId) {
     Review review =
         reviewRepository
@@ -195,6 +201,7 @@ public class ReviewServiceImpl implements ReviewService {
 
   @Transactional
   @Override
+  @CacheEvict(value = "popularReviews", allEntries = true)
   public ReviewDto updateReview(UUID userId, UUID reviewId, ReviewUpdateRequest request) {
     Review review =
         reviewRepository
@@ -242,6 +249,7 @@ public class ReviewServiceImpl implements ReviewService {
   )
   @Transactional
   @Override
+  @CacheEvict(value = "popularReviews", allEntries = true)
   public ReviewLikeDto likeReview(UUID reviewId, UUID userId) {
     Review review =
         reviewRepository
@@ -368,6 +376,12 @@ public class ReviewServiceImpl implements ReviewService {
   }
 
   @Override
+  @Cacheable(
+      value = "popularReviews",
+      key = "#period.name() + '_' + #direction.name() + '_' + #limit",
+      condition = "#cursor == null", // 첫 페이지만 캐싱
+      unless = "#result.content.isEmpty()" // 빈 결과는 캐싱하지 않음
+  )
   public CursorPageResponsePopularReviewDto getPopularReviews(
       PeriodType period, Direction direction, String cursor, Instant after, Integer limit) {
 
