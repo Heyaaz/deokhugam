@@ -24,9 +24,8 @@ public class CacheConfig {
 
     // Caffeine 캐시 설정
     cacheManager.setCaffeine(Caffeine.newBuilder()
-        .maximumSize(1000) // 최대 캐시 크기
-        .expireAfterWrite(Duration.ofMinutes(10)) // 10분 후 만료
-        .recordStats() // 통계 기록 활성화
+        .maximumSize(50) // 최대 캐시 크기
+        .expireAfterWrite(Duration.ofMinutes(55)) // 55분 만료
         .removalListener((key, value, cause) ->
             log.info("캐시 제거 : 키={}, 값={}, 원인={}", key, value, cause))
         );
