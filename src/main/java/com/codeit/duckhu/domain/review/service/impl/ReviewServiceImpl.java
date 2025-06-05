@@ -29,6 +29,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -298,6 +299,8 @@ public class ReviewServiceImpl implements ReviewService {
   @Override
   public CursorPageResponseReviewDto findReviews(
       ReviewSearchRequestDto requestDto, UUID currentUserId) {
+    long startTime = System.currentTimeMillis();
+
     // 요청 DTO에서 필요한 값 추출
     String keyword = requestDto.getKeyword();
     String orderBy = requestDto.getOrderBy();
@@ -312,9 +315,13 @@ public class ReviewServiceImpl implements ReviewService {
         keyword, orderBy, direction);
 
     // 리포지토리 메서드 호출하여 데이터 조회
+    long queryStart = System.currentTimeMillis();
     List<Review> reviews =
         reviewRepository.findReviewsWithCursor(
             keyword, orderBy, direction, userId, bookId, cursor, after, limit + 1);
+    long queryEnd = System.currentTimeMillis();
+    log.info("메인 쿼리: {}ms (리뷰 {}개)", queryEnd - queryStart, reviews.size());
+
 
     // 다음 페이지 존재 여부 확인 (N+1 조회 방식)
     boolean hasNext = reviews.size() > limit;
@@ -323,6 +330,7 @@ public class ReviewServiceImpl implements ReviewService {
     List<Review> responseReviews = hasNext ? reviews.subList(0, limit) : reviews;
 
     // 다음 페이지 커서 정보 설정
+    long cursorStart = System.currentTimeMillis();
     String nextCursor = null;
     Instant nextAfter = null;
 
@@ -334,29 +342,59 @@ public class ReviewServiceImpl implements ReviewService {
               : lastReview.getId().toString();
       nextAfter = lastReview.getCreatedAt();
     }
+    long cursorEnd = System.currentTimeMillis();
+    log.info("커서 처리: {}ms", cursorEnd - cursorStart);
 
     // DTO로 변환
     // 썸네일 URL을 S3에서 가져오는 로직으로 수정 - jw
+    long dtoStart = System.currentTimeMillis();
+    AtomicLong totalImageTime = new AtomicLong(0);
+    AtomicLong totalCommentTime = new AtomicLong(0);
+    AtomicLong totalMappingTime = new AtomicLong(0);
+
     List<ReviewDto> reviewDtos =
         responseReviews.stream()
             .map(
                 review -> {
+                  long itemStart = System.currentTimeMillis();
+
+                  long imageStart = System.currentTimeMillis();
                   Book book = review.getBook();
                   String thumbnailUrl = null;
 
                   if (book != null && book.getThumbnailUrl() != null) {
                     thumbnailUrl = thumbnailImageStorage.get(book.getThumbnailUrl());
                   }
+                  long imageEnd = System.currentTimeMillis();
+                  totalImageTime.addAndGet(imageEnd - imageStart);
 
                   // 코멘트 수를 DB에서 직접 가져옵니다
+                  long commentStart = System.currentTimeMillis();
                   int commentCount =
                       commentRepository.countByReviewIdAndIsDeletedFalse(review.getId());
                   // 리뷰 엔티티에 코멘트 수 설정
                   review.updateCommentCount(commentCount);
+                  long commentEnd = System.currentTimeMillis();
+                  totalCommentTime.addAndGet(commentEnd - commentStart);
 
-                  return reviewMapper.toDto(review, thumbnailUrl, currentUserId);
+                  long mappingStart = System.currentTimeMillis();
+                  ReviewDto dto = reviewMapper.toDto(review, thumbnailUrl, currentUserId);
+                  long mappingEnd = System.currentTimeMillis();
+                  totalMappingTime.addAndGet(mappingEnd - mappingStart);
+
+                  long itemEnd = System.currentTimeMillis();
+                  if (itemEnd - itemStart > 10) { // 10ms 이상 걸리는 항목 로깅
+                    log.warn("느린 DTO 변환: {}ms (이미지:{}ms, 댓글:{}ms, 매핑:{}ms)",
+                        itemEnd - itemStart, imageEnd - imageStart, commentEnd - commentStart, mappingEnd - mappingStart);
+                  }
+                  return dto;
                 })
             .collect(Collectors.toList());
+    long dtoEnd = System.currentTimeMillis();
+    log.info("DTO 변환 완료: {}ms", dtoEnd - dtoStart);
+    log.info("이미지 URL 총합: {}ms", totalImageTime.get());
+    log.info("댓글 수 총합: {}ms", totalCommentTime.get());
+    log.info("매핑 총합: {}ms", totalMappingTime.get());
 
     log.info(
         "리뷰 조회 완료 - 키워드: {}, 정렬 기준: {}, 방향: {}, 결과 수: {}",
@@ -366,13 +404,21 @@ public class ReviewServiceImpl implements ReviewService {
         responseReviews.size());
 
     // 응답 DTO 구성
-    return CursorPageResponseReviewDto.builder()
+    long responseStart = System.currentTimeMillis();
+    CursorPageResponseReviewDto result = CursorPageResponseReviewDto.builder()
         .content(reviewDtos)
         .nextCursor(nextCursor)
         .nextAfter(nextAfter)
         .hasNext(hasNext)
         .size(responseReviews.size())
         .build();
+    long responseEnd = System.currentTimeMillis();
+    log.info("응답 구성: {}ms", responseEnd - responseStart);
+
+    long totalEnd = System.currentTimeMillis();
+    log.info("전체 완료: {}ms", totalEnd - startTime);
+
+    return result;
   }
 
   @Override
