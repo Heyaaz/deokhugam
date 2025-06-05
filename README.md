@@ -3,10 +3,10 @@
 ## 📋 프로젝트 정보
 
 ### Git
-- **Repository**: https://github.com/sb01-deokhugam-team1/sb01-deokhugam-team1
+- **Repository**: [기존 deokhugam 프로젝트](https://github.com/sb01-deokhugam-team1/sb01-deokhugam-team1)
 
 ### Blog
-- **개발 과정**: https://velog.io/@heejae/posts
+- **개발 과정**: [velog](https://velog.io/@heejae/posts)
 
 ---
 
