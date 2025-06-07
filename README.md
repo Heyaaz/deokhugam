@@ -3,7 +3,7 @@
 ## 📋 프로젝트 정보
 
 ### Git
-- **Repository**: [기존 deokhugam 프로젝트](https://github.com/sb01-deokhugam-team1/sb01-deokhugam-team1)
+- **Repository**: [deokhugam](https://github.com/sb01-deokhugam-team1/sb01-deokhugam-team1)
 
 ### Blog
 - **개발 과정**: [velog](https://velog.io/@heejae/posts)
@@ -15,7 +15,6 @@
 ### 📊 리뷰 API CRUD
 - **리뷰 목록 조회**: 다양한 조건 검색, 정렬 및 커서 페이지네이션
 - **Spring Batch 인기 리뷰**: Spring Batch를 이용한 대시보드 인기 리뷰 구현
-- **인기 리뷰 계산**: 인기 리뷰 계산 후 정렬
 - **인기 리뷰 목록 조회**: 기간 별 페이지네이션
 
 ---
@@ -70,7 +69,7 @@
 - 자주 호출되는 인기 리뷰 로딩 속도 개선 필요
 
 #### ✅ 해결방안 및 결과
-- **인기 리뷰 커서 페이지네이션 두번 째 조회시 91% 개선**
+- **인기 리뷰 커서 페이지네이션 조회시 91% 개선**
 
 #### 📖 상세 내용
 - [캐싱 도입](https://velog.io/@heejae/%EC%BA%90%EC%8B%B1-%EC%A0%84%EB%9E%B5)
